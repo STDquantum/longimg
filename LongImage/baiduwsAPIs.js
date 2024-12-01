@@ -69,6 +69,21 @@ function getValue() {
         });
     };
 
+    function downloadCanvasImage(canvas, geshi) {
+        var downloadLink = document.createElement("a");
+        downloadLink.download = "hebing.";
+        if (geshi == 1) {
+            var imageData = canvas.toDataURL("image/jpeg", quality);
+            downloadLink.href = imageData;
+            downloadLink.download = "hebing.jpg"
+        } else {
+            var imageData = canvas.toDataURL("image/png", quality);
+            downloadLink.href = imageData;
+            downloadLink.download = "hebing.png"
+        }
+        downloadLink.click();
+    }
+
     var CombineImgs = (images, imgBasicInfofunc) => {
         if (hengshu == 1) {
             var modifiedDimensions = images.map(img => gk / img.width * img.height);
@@ -100,5 +115,6 @@ function getValue() {
         } else {
             imgBasicInfofunc(canvas.toDataURL('image/png', quality));
         }
+        downloadCanvasImage(canvas, geshi);
     }
 }
