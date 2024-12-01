@@ -21,6 +21,7 @@ function getValue() {
     var geshi = document.getElementById("geshi")["value"]
     hengshu = document.getElementById("hengshu")["value"]
     gk = document.getElementById("gk")["value"]
+    zhengnixu = document.getElementById("zhengnixu")["value"]
     var quality = ~~document.getElementById("zhiliang")["value"]
     up.addEventListener("change", chosenFiles => {
         var imgList = Array.from(chosenFiles.target.files);
@@ -61,7 +62,11 @@ function getValue() {
                     imgList[index] = image;
                     processedImgs++;
                     if (processedImgs === length) {
-                        processWholeImgList(imgList);
+                        if (zhengnixu == 1) {
+                            processWholeImgList(imgList.reverse());
+                        } else {
+                            processWholeImgList(imgList);
+                        }
                     }
                 };
             };
