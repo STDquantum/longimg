@@ -262,11 +262,14 @@
             flex-wrap: wrap;
             gap: 12px;
             min-height: 120px;
+            max-height: 60vh;
             padding: 16px;
             background: #f8f9fa;
             border-radius: 12px;
             border: 2px solid #e0e0e0;
             position: relative;
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .images-list.vertical {
@@ -277,9 +280,11 @@
         .images-list.horizontal {
             flex-direction: row;
             align-items: flex-start;
-            overflow-x: auto;
             flex-wrap: nowrap;
-            -webkit-overflow-scrolling: touch;
+        }
+
+        .images-list.auto-scrolling {
+            scroll-behavior: auto;
         }
 
         .image-item {
@@ -303,11 +308,8 @@
         }
 
         .image-item.dragging {
-            opacity: 0.8;
+            opacity: 0.4;
             cursor: grabbing;
-            transform: scale(1.05);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-            z-index: 1000;
         }
 
         .image-item.drag-over {
@@ -493,7 +495,6 @@
             to { transform: rotate(360deg); }
         }
 
-        /* 拖拽时的幽灵元素 */
         .drag-ghost {
             position: fixed;
             pointer-events: none;
@@ -507,8 +508,8 @@
 
         .drag-ghost img {
             display: block;
-            max-width: 120px;
-            max-height: 120px;
+            max-width: 100px;
+            max-height: 100px;
         }
 
         .drag-hint {
@@ -518,6 +519,61 @@
             font-size: 13px;
             border-top: 1px solid #e0e0e0;
             margin-top: 12px;
+        }
+
+        /* 滚动指示器 */
+        .scroll-indicator {
+            position: absolute;
+            pointer-events: none;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .scroll-indicator.active {
+            opacity: 1;
+        }
+
+        .scroll-indicator.top,
+        .scroll-indicator.bottom {
+            left: 0;
+            right: 0;
+            height: 40px;
+        }
+
+        .scroll-indicator.top {
+            top: 0;
+            background: linear-gradient(to bottom, rgba(102, 126, 234, 0.3), transparent);
+            border-radius: 12px 12px 0 0;
+        }
+
+        .scroll-indicator.bottom {
+            bottom: 0;
+            background: linear-gradient(to top, rgba(102, 126, 234, 0.3), transparent);
+            border-radius: 0 0 12px 12px;
+        }
+
+        .scroll-indicator.left,
+        .scroll-indicator.right {
+            top: 0;
+            bottom: 0;
+            width: 40px;
+        }
+
+        .scroll-indicator.left {
+            left: 0;
+            background: linear-gradient(to right, rgba(102, 126, 234, 0.3), transparent);
+            border-radius: 12px 0 0 12px;
+        }
+
+        .scroll-indicator.right {
+            right: 0;
+            background: linear-gradient(to left, rgba(102, 126, 234, 0.3), transparent);
+            border-radius: 0 12px 12px 0;
+        }
+
+        .images-list-wrapper {
+            position: relative;
         }
     </style>
 </head>
@@ -571,10 +627,16 @@
                     <h3>🖼️ 图片列表</h3>
                     <span class="image-count" id="imageCount">0 张</span>
                 </div>
-                <div class="images-list vertical" id="imagesList">
-                    <div class="empty-message">暂无图片</div>
+                <div class="images-list-wrapper">
+                    <div class="images-list vertical" id="imagesList">
+                        <div class="empty-message">暂无图片</div>
+                    </div>
+                    <div class="scroll-indicator top" id="scrollTop"></div>
+                    <div class="scroll-indicator bottom" id="scrollBottom"></div>
+                    <div class="scroll-indicator left" id="scrollLeft"></div>
+                    <div class="scroll-indicator right" id="scrollRight"></div>
                 </div>
-                <div class="drag-hint" id="dragHint">💡 长按并拖动图片可调整顺序</div>
+                <div class="drag-hint" id="dragHint">💡 长按并拖动图片可调整顺序，拖到边缘自动滚动</div>
             </div>
 
             <div class="actions">
@@ -605,7 +667,16 @@
             offsetX: 0,
             offsetY: 0,
             longPressTimer: null,
-            hasMoved: false
+            hasMoved: false,
+            autoScrollRAF: null,
+            scrollDirection: { x: 0, y: 0 }
+        };
+
+        // 自动滚动配置
+        const SCROLL_CONFIG = {
+            edgeSize: 60,          // 触发滚动的边缘区域大小(px)
+            maxSpeed: 15,          // 最大滚动速度(px/frame)
+            acceleration: 0.5     // 加速度因子
         };
 
         // DOM 元素
@@ -624,6 +695,14 @@
         const clearBtn = document.getElementById('clearBtn');
         const progressOverlay = document.getElementById('progressOverlay');
         const dragHint = document.getElementById('dragHint');
+        
+        // 滚动指示器
+        const scrollIndicators = {
+            top: document.getElementById('scrollTop'),
+            bottom: document.getElementById('scrollBottom'),
+            left: document.getElementById('scrollLeft'),
+            right: document.getElementById('scrollRight')
+        };
 
         // 检测是否是触摸设备
         const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -656,6 +735,7 @@
             const isVertical = directionSelect.value === 'vertical';
             sizeLabel.textContent = isVertical ? '统一宽度 (px)' : '统一高度 (px)';
             imagesList.className = `images-list ${directionSelect.value}`;
+            updateScrollIndicatorVisibility();
         });
 
         qualitySlider.addEventListener('input', () => {
@@ -691,9 +771,17 @@
                 });
             }
 
-            // 按时间排序（早的在前）
             images.sort((a, b) => a.lastModified - b.lastModified);
             renderImages();
+        }
+
+        // 更新滚动指示器可见性
+        function updateScrollIndicatorVisibility() {
+            const isVertical = directionSelect.value === 'vertical';
+            scrollIndicators.top.style.display = isVertical ? 'block' : 'none';
+            scrollIndicators.bottom.style.display = isVertical ? 'block' : 'none';
+            scrollIndicators.left.style.display = isVertical ? 'none' : 'block';
+            scrollIndicators.right.style.display = isVertical ? 'none' : 'block';
         }
 
         // 渲染图片列表
@@ -711,6 +799,7 @@
             generateBtn.disabled = false;
             imageCount.textContent = images.length + ' 张';
             dragHint.style.display = images.length > 1 ? 'block' : 'none';
+            updateScrollIndicatorVisibility();
 
             imagesList.innerHTML = '';
             images.forEach((item, index) => {
@@ -729,10 +818,8 @@
                     <span class="image-time">${timeStr}</span>
                 `;
 
-                // 阻止图片上下文菜单
                 div.addEventListener('contextmenu', (e) => e.preventDefault());
 
-                // 删除按钮
                 const removeBtn = div.querySelector('.remove-btn');
                 removeBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -746,9 +833,7 @@
                     e.stopPropagation();
                 });
 
-                // 添加拖拽事件
                 setupDragEvents(div);
-
                 imagesList.appendChild(div);
             });
         }
@@ -756,13 +841,11 @@
         // 设置拖拽事件
         function setupDragEvents(element) {
             if (isTouchDevice) {
-                // 触摸设备事件
                 element.addEventListener('touchstart', handleTouchStart, { passive: false });
                 element.addEventListener('touchmove', handleTouchMove, { passive: false });
                 element.addEventListener('touchend', handleTouchEnd);
                 element.addEventListener('touchcancel', handleTouchEnd);
             } else {
-                // 桌面设备拖拽
                 element.draggable = true;
                 element.addEventListener('dragstart', handleDragStart);
                 element.addEventListener('dragend', handleDragEnd);
@@ -772,10 +855,92 @@
             }
         }
 
+        // ==================== 自动滚动逻辑 ====================
+
+        function calculateScrollSpeed(position, containerRect) {
+            const isVertical = directionSelect.value === 'vertical';
+            let speedX = 0, speedY = 0;
+
+            if (isVertical) {
+                // 竖向模式：检测上下边缘
+                const distanceToTop = position.y - containerRect.top;
+                const distanceToBottom = containerRect.bottom - position.y;
+
+                if (distanceToTop < SCROLL_CONFIG.edgeSize) {
+                    // 接近顶部，向上滚动（负值）
+                    const ratio = 1 - (distanceToTop / SCROLL_CONFIG.edgeSize);
+                    speedY = -SCROLL_CONFIG.maxSpeed * ratio * SCROLL_CONFIG.acceleration;
+                } else if (distanceToBottom < SCROLL_CONFIG.edgeSize) {
+                    // 接近底部，向下滚动（正值）
+                    const ratio = 1 - (distanceToBottom / SCROLL_CONFIG.edgeSize);
+                    speedY = SCROLL_CONFIG.maxSpeed * ratio * SCROLL_CONFIG.acceleration;
+                }
+            } else {
+                // 横向模式：检测左右边缘
+                const distanceToLeft = position.x - containerRect.left;
+                const distanceToRight = containerRect.right - position.x;
+
+                if (distanceToLeft < SCROLL_CONFIG.edgeSize) {
+                    const ratio = 1 - (distanceToLeft / SCROLL_CONFIG.edgeSize);
+                    speedX = -SCROLL_CONFIG.maxSpeed * ratio * SCROLL_CONFIG.acceleration;
+                } else if (distanceToRight < SCROLL_CONFIG.edgeSize) {
+                    const ratio = 1 - (distanceToRight / SCROLL_CONFIG.edgeSize);
+                    speedX = SCROLL_CONFIG.maxSpeed * ratio * SCROLL_CONFIG.acceleration;
+                }
+            }
+
+            return { x: speedX, y: speedY };
+        }
+
+        function updateScrollIndicators(speed) {
+            const isVertical = directionSelect.value === 'vertical';
+            
+            // 重置所有指示器
+            Object.values(scrollIndicators).forEach(el => el.classList.remove('active'));
+
+            if (isVertical) {
+                if (speed.y < 0) scrollIndicators.top.classList.add('active');
+                if (speed.y > 0) scrollIndicators.bottom.classList.add('active');
+            } else {
+                if (speed.x < 0) scrollIndicators.left.classList.add('active');
+                if (speed.x > 0) scrollIndicators.right.classList.add('active');
+            }
+        }
+
+        function startAutoScroll() {
+            if (dragState.autoScrollRAF) return;
+
+            function scrollStep() {
+                if (!dragState.isDragging) {
+                    stopAutoScroll();
+                    return;
+                }
+
+                const speed = dragState.scrollDirection;
+                
+                if (speed.x !== 0 || speed.y !== 0) {
+                    imagesList.scrollLeft += speed.x;
+                    imagesList.scrollTop += speed.y;
+                }
+
+                dragState.autoScrollRAF = requestAnimationFrame(scrollStep);
+            }
+
+            dragState.autoScrollRAF = requestAnimationFrame(scrollStep);
+        }
+
+        function stopAutoScroll() {
+            if (dragState.autoScrollRAF) {
+                cancelAnimationFrame(dragState.autoScrollRAF);
+                dragState.autoScrollRAF = null;
+            }
+            dragState.scrollDirection = { x: 0, y: 0 };
+            Object.values(scrollIndicators).forEach(el => el.classList.remove('active'));
+        }
+
         // ==================== 触摸事件处理 ====================
         
         function handleTouchStart(e) {
-            // 如果点击的是删除按钮，不处理拖拽
             if (e.target.classList.contains('remove-btn')) {
                 return;
             }
@@ -790,7 +955,6 @@
             dragState.offsetY = touch.clientY - rect.top;
             dragState.hasMoved = false;
 
-            // 长按定时器 - 200ms后开始拖拽
             dragState.longPressTimer = setTimeout(() => {
                 startTouchDrag(element, touch);
             }, 200);
@@ -801,35 +965,32 @@
             dragState.draggedItem = element;
             dragState.draggedIndex = parseInt(element.dataset.index);
 
-            // 添加震动反馈（如果支持）
             if (navigator.vibrate) {
                 navigator.vibrate(50);
             }
 
-            // 创建幽灵元素
             const ghost = document.createElement('div');
             ghost.className = 'drag-ghost';
             ghost.innerHTML = `<img src="${images[dragState.draggedIndex].url}" alt="">`;
             document.body.appendChild(ghost);
             dragState.ghost = ghost;
 
-            // 创建占位符
             const placeholder = document.createElement('div');
             placeholder.className = 'drag-placeholder';
             placeholder.style.width = element.offsetWidth + 'px';
             placeholder.style.height = element.offsetHeight + 'px';
             dragState.placeholder = placeholder;
 
-            // 隐藏原元素并插入占位符
             element.classList.add('dragging');
             element.parentNode.insertBefore(placeholder, element);
 
-            // 更新幽灵位置
             updateGhostPosition(touch.clientX, touch.clientY);
+            
+            // 启动自动滚动
+            startAutoScroll();
         }
 
         function handleTouchMove(e) {
-            // 如果还没开始拖拽，检查是否移动了足够距离取消长按
             if (!dragState.isDragging) {
                 const touch = e.touches[0];
                 const dx = Math.abs(touch.clientX - dragState.startX);
@@ -847,10 +1008,18 @@
             
             updateGhostPosition(touch.clientX, touch.clientY);
 
+            // 计算自动滚动速度
+            const containerRect = imagesList.getBoundingClientRect();
+            const speed = calculateScrollSpeed(
+                { x: touch.clientX, y: touch.clientY },
+                containerRect
+            );
+            dragState.scrollDirection = speed;
+            updateScrollIndicators(speed);
+
             // 找到当前位置下的目标元素
             const target = findDropTarget(touch.clientX, touch.clientY);
             
-            // 更新高亮状态
             document.querySelectorAll('.image-item').forEach(item => {
                 item.classList.remove('drag-over');
             });
@@ -858,15 +1027,24 @@
             if (target && target !== dragState.draggedItem) {
                 target.classList.add('drag-over');
                 
-                // 移动占位符
                 const targetIndex = parseInt(target.dataset.index);
                 const currentIndex = Array.from(imagesList.children).indexOf(dragState.placeholder);
                 
                 if (targetIndex !== currentIndex) {
-                    if (targetIndex > currentIndex) {
-                        target.parentNode.insertBefore(dragState.placeholder, target.nextSibling);
+                    const isVertical = directionSelect.value === 'vertical';
+                    const targetRect = target.getBoundingClientRect();
+                    
+                    let insertBefore;
+                    if (isVertical) {
+                        insertBefore = touch.clientY < targetRect.top + targetRect.height / 2;
                     } else {
+                        insertBefore = touch.clientX < targetRect.left + targetRect.width / 2;
+                    }
+                    
+                    if (insertBefore) {
                         target.parentNode.insertBefore(dragState.placeholder, target);
+                    } else {
+                        target.parentNode.insertBefore(dragState.placeholder, target.nextSibling);
                     }
                 }
             }
@@ -874,28 +1052,29 @@
 
         function handleTouchEnd(e) {
             clearTimeout(dragState.longPressTimer);
+            stopAutoScroll();
 
             if (!dragState.isDragging) {
                 return;
             }
 
-            // 获取最终位置
             const placeholderIndex = Array.from(imagesList.children).indexOf(dragState.placeholder);
             const fromIndex = dragState.draggedIndex;
 
-            // 计算实际目标索引（需要考虑拖拽元素本身）
+            // 计算实际的新索引
+            const allChildren = Array.from(imagesList.children);
+            const draggedItemIndex = allChildren.indexOf(dragState.draggedItem);
+            
             let toIndex = placeholderIndex;
-            if (placeholderIndex > fromIndex) {
-                toIndex -= 1; // 因为拖拽元素还在列表中
+            if (draggedItemIndex < placeholderIndex) {
+                toIndex -= 1;
             }
 
-            // 执行排序
-            if (fromIndex !== toIndex && toIndex >= 0) {
+            if (fromIndex !== toIndex && toIndex >= 0 && toIndex < images.length) {
                 const [removed] = images.splice(fromIndex, 1);
                 images.splice(toIndex, 0, removed);
             }
 
-            // 清理
             cleanupDrag();
             renderImages();
         }
@@ -908,7 +1087,17 @@
         }
 
         function findDropTarget(x, y) {
+            // 临时隐藏ghost以便获取正确的元素
+            if (dragState.ghost) {
+                dragState.ghost.style.display = 'none';
+            }
+            
             const elements = document.elementsFromPoint(x, y);
+            
+            if (dragState.ghost) {
+                dragState.ghost.style.display = '';
+            }
+            
             for (const el of elements) {
                 if (el.classList.contains('image-item') && el !== dragState.draggedItem) {
                     return el;
@@ -931,6 +1120,8 @@
                 item.classList.remove('drag-over');
             });
 
+            stopAutoScroll();
+
             dragState = {
                 isDragging: false,
                 draggedItem: null,
@@ -942,7 +1133,9 @@
                 offsetX: 0,
                 offsetY: 0,
                 longPressTimer: null,
-                hasMoved: false
+                hasMoved: false,
+                autoScrollRAF: null,
+                scrollDirection: { x: 0, y: 0 }
             };
         }
 
@@ -954,6 +1147,12 @@
             e.currentTarget.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', dragState.draggedIndex);
+            
+            // 延迟启动，让浏览器完成默认拖拽初始化
+            setTimeout(() => {
+                dragState.isDragging = true;
+                startAutoScroll();
+            }, 0);
         }
 
         function handleDragEnd(e) {
@@ -961,12 +1160,24 @@
             document.querySelectorAll('.image-item').forEach(item => {
                 item.classList.remove('drag-over');
             });
+            dragState.isDragging = false;
             dragState.draggedItem = null;
             dragState.draggedIndex = -1;
+            stopAutoScroll();
         }
 
         function handleDragOver(e) {
             e.preventDefault();
+            
+            // 更新自动滚动
+            const containerRect = imagesList.getBoundingClientRect();
+            const speed = calculateScrollSpeed(
+                { x: e.clientX, y: e.clientY },
+                containerRect
+            );
+            dragState.scrollDirection = speed;
+            updateScrollIndicators(speed);
+            
             if (dragState.draggedItem && e.currentTarget !== dragState.draggedItem) {
                 e.currentTarget.classList.add('drag-over');
             }
@@ -979,6 +1190,7 @@
         function handleDrop(e) {
             e.preventDefault();
             e.currentTarget.classList.remove('drag-over');
+            stopAutoScroll();
 
             if (dragState.draggedItem && e.currentTarget !== dragState.draggedItem) {
                 const fromIndex = dragState.draggedIndex;
@@ -1010,7 +1222,6 @@
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
 
-                // 计算每张图的缩放尺寸
                 const scaledImages = images.map(item => {
                     const img = item.img;
                     let w, h;
@@ -1026,7 +1237,6 @@
                     return { img, w: Math.round(w), h: Math.round(h) };
                 });
 
-                // 计算画布尺寸
                 if (isVertical) {
                     canvas.width = targetSize;
                     canvas.height = scaledImages.reduce((sum, item) => sum + item.h, 0);
@@ -1035,7 +1245,6 @@
                     canvas.height = targetSize;
                 }
 
-                // 绘制图片
                 let offset = 0;
                 for (const item of scaledImages) {
                     if (isVertical) {
@@ -1047,7 +1256,6 @@
                     }
                 }
 
-                // 导出并下载
                 const mimeType = `image/${format}`;
                 const extension = format === 'jpeg' ? 'jpg' : format;
                 
