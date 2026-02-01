@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>长图生成器</title>
     <style>
         * {
@@ -16,6 +16,12 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
         }
 
         .container {
@@ -34,6 +40,15 @@
             text-align: center;
         }
 
+        @media (max-width: 600px) {
+            .header {
+                padding: 16px;
+            }
+            .header h1 {
+                font-size: 22px;
+            }
+        }
+
         .header h1 {
             font-size: 28px;
             font-weight: 600;
@@ -48,6 +63,12 @@
             padding: 24px;
         }
 
+        @media (max-width: 600px) {
+            .content {
+                padding: 16px;
+            }
+        }
+
         .upload-area {
             border: 3px dashed #ddd;
             border-radius: 12px;
@@ -56,6 +77,14 @@
             cursor: pointer;
             transition: all 0.3s;
             background: #fafafa;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        @media (max-width: 600px) {
+            .upload-area {
+                padding: 24px 16px;
+            }
         }
 
         .upload-area:hover {
@@ -98,6 +127,15 @@
             border-radius: 12px;
         }
 
+        @media (max-width: 600px) {
+            .settings {
+                grid-template-columns: 1fr;
+                gap: 16px;
+                padding: 16px;
+                margin: 16px 0;
+            }
+        }
+
         .setting-group {
             display: flex;
             flex-direction: column;
@@ -112,11 +150,19 @@
 
         .setting-group select,
         .setting-group input[type="number"] {
-            padding: 10px 14px;
+            padding: 12px 14px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 16px;
             transition: border-color 0.3s;
+            -webkit-appearance: none;
+            appearance: none;
+            background: white;
+        }
+
+        .setting-group select {
+            background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 12px center;
+            padding-right: 36px;
         }
 
         .setting-group select:focus,
@@ -144,8 +190,8 @@
         .quality-wrapper input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 18px;
-            height: 18px;
+            width: 24px;
+            height: 24px;
             background: #667eea;
             border-radius: 50%;
             cursor: pointer;
@@ -157,8 +203,8 @@
         }
 
         .quality-wrapper input[type="range"]::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
+            width: 24px;
+            height: 24px;
             background: #667eea;
             border-radius: 50%;
             cursor: pointer;
@@ -183,15 +229,24 @@
             margin: 24px 0;
         }
 
+        @media (max-width: 600px) {
+            .images-container {
+                margin: 16px 0;
+            }
+        }
+
         .images-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 8px;
         }
 
         .images-header h3 {
             color: #333;
+            font-size: 16px;
         }
 
         .image-count {
@@ -211,6 +266,7 @@
             background: #f8f9fa;
             border-radius: 12px;
             border: 2px solid #e0e0e0;
+            position: relative;
         }
 
         .images-list.vertical {
@@ -221,6 +277,9 @@
         .images-list.horizontal {
             flex-direction: row;
             align-items: flex-start;
+            overflow-x: auto;
+            flex-wrap: nowrap;
+            -webkit-overflow-scrolling: touch;
         }
 
         .image-item {
@@ -231,6 +290,11 @@
             cursor: grab;
             transition: transform 0.2s, box-shadow 0.2s;
             overflow: hidden;
+            flex-shrink: 0;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: none;
         }
 
         .image-item:hover {
@@ -239,12 +303,15 @@
         }
 
         .image-item.dragging {
-            opacity: 0.5;
+            opacity: 0.8;
             cursor: grabbing;
+            transform: scale(1.05);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
         }
 
         .image-item.drag-over {
-            transform: scale(1.05);
+            transform: scale(0.95);
             box-shadow: 0 0 0 3px #667eea;
         }
 
@@ -253,30 +320,40 @@
             max-width: 150px;
             max-height: 150px;
             object-fit: contain;
+            pointer-events: none;
+            -webkit-user-drag: none;
+        }
+
+        @media (max-width: 600px) {
+            .image-item img {
+                max-width: 120px;
+                max-height: 120px;
+            }
         }
 
         .image-item .remove-btn {
             position: absolute;
             top: 4px;
             right: 4px;
-            width: 24px;
-            height: 24px;
+            width: 28px;
+            height: 28px;
             background: rgba(255, 59, 48, 0.9);
             color: white;
             border: none;
             border-radius: 50%;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 16px;
             line-height: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            opacity: 0;
-            transition: opacity 0.2s;
+            opacity: 1;
+            transition: transform 0.2s;
+            z-index: 10;
         }
 
-        .image-item:hover .remove-btn {
-            opacity: 1;
+        .image-item .remove-btn:active {
+            transform: scale(0.9);
         }
 
         .image-item .image-index {
@@ -312,6 +389,13 @@
             padding: 40px;
         }
 
+        .drag-placeholder {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            background: rgba(102, 126, 234, 0.1);
+            flex-shrink: 0;
+        }
+
         .actions {
             display: flex;
             gap: 12px;
@@ -327,6 +411,15 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        @media (max-width: 600px) {
+            .btn {
+                flex: 1;
+                min-width: 120px;
+            }
         }
 
         .btn-primary {
@@ -337,6 +430,10 @@
         .btn-primary:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:active:not(:disabled) {
+            transform: translateY(0);
         }
 
         .btn-primary:disabled {
@@ -351,6 +448,10 @@
 
         .btn-secondary:hover {
             background: #e0e0e0;
+        }
+
+        .btn-secondary:active {
+            background: #d0d0d0;
         }
 
         .progress-overlay {
@@ -375,6 +476,7 @@
             padding: 40px;
             border-radius: 16px;
             text-align: center;
+            margin: 20px;
         }
 
         .spinner {
@@ -389,6 +491,33 @@
 
         @keyframes spin {
             to { transform: rotate(360deg); }
+        }
+
+        /* 拖拽时的幽灵元素 */
+        .drag-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.9;
+            transform: rotate(3deg);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .drag-ghost img {
+            display: block;
+            max-width: 120px;
+            max-height: 120px;
+        }
+
+        .drag-hint {
+            text-align: center;
+            padding: 8px;
+            color: #888;
+            font-size: 13px;
+            border-top: 1px solid #e0e0e0;
+            margin-top: 12px;
         }
     </style>
 </head>
@@ -439,12 +568,13 @@
 
             <div class="images-container" id="imagesContainer" style="display: none;">
                 <div class="images-header">
-                    <h3>🖼️ 图片列表 <span class="tip">（拖拽调整顺序）</span></h3>
+                    <h3>🖼️ 图片列表</h3>
                     <span class="image-count" id="imageCount">0 张</span>
                 </div>
                 <div class="images-list vertical" id="imagesList">
                     <div class="empty-message">暂无图片</div>
                 </div>
+                <div class="drag-hint" id="dragHint">💡 长按并拖动图片可调整顺序</div>
             </div>
 
             <div class="actions">
@@ -464,7 +594,19 @@
     <script>
         // 全局状态
         let images = [];
-        let draggedItem = null;
+        let dragState = {
+            isDragging: false,
+            draggedItem: null,
+            draggedIndex: -1,
+            ghost: null,
+            placeholder: null,
+            startX: 0,
+            startY: 0,
+            offsetX: 0,
+            offsetY: 0,
+            longPressTimer: null,
+            hasMoved: false
+        };
 
         // DOM 元素
         const uploadArea = document.getElementById('uploadArea');
@@ -481,6 +623,10 @@
         const generateBtn = document.getElementById('generateBtn');
         const clearBtn = document.getElementById('clearBtn');
         const progressOverlay = document.getElementById('progressOverlay');
+        const dragHint = document.getElementById('dragHint');
+
+        // 检测是否是触摸设备
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
         // 事件绑定
         uploadArea.addEventListener('click', () => fileInput.click());
@@ -517,6 +663,7 @@
         });
 
         clearBtn.addEventListener('click', () => {
+            images.forEach(img => URL.revokeObjectURL(img.url));
             images = [];
             renderImages();
         });
@@ -563,79 +710,290 @@
             clearBtn.style.display = 'inline-block';
             generateBtn.disabled = false;
             imageCount.textContent = images.length + ' 张';
+            dragHint.style.display = images.length > 1 ? 'block' : 'none';
 
             imagesList.innerHTML = '';
             images.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.className = 'image-item';
-                div.draggable = true;
                 div.dataset.id = item.id;
+                div.dataset.index = index;
 
                 const time = new Date(item.lastModified);
                 const timeStr = `${time.getMonth() + 1}/${time.getDate()} ${time.getHours()}:${String(time.getMinutes()).padStart(2, '0')}`;
 
                 div.innerHTML = `
-                    <img src="${item.url}" alt="">
+                    <img src="${item.url}" alt="" draggable="false">
                     <button class="remove-btn" title="删除">✕</button>
                     <span class="image-index">${index + 1}</span>
                     <span class="image-time">${timeStr}</span>
                 `;
 
+                // 阻止图片上下文菜单
+                div.addEventListener('contextmenu', (e) => e.preventDefault());
+
                 // 删除按钮
-                div.querySelector('.remove-btn').addEventListener('click', (e) => {
+                const removeBtn = div.querySelector('.remove-btn');
+                removeBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    e.preventDefault();
+                    const imgItem = images.find(img => img.id === item.id);
+                    if (imgItem) URL.revokeObjectURL(imgItem.url);
                     images = images.filter(img => img.id !== item.id);
-                    URL.revokeObjectURL(item.url);
                     renderImages();
                 });
-
-                // 拖拽事件
-                div.addEventListener('dragstart', (e) => {
-                    draggedItem = div;
-                    div.classList.add('dragging');
-                    e.dataTransfer.effectAllowed = 'move';
+                removeBtn.addEventListener('touchend', (e) => {
+                    e.stopPropagation();
                 });
 
-                div.addEventListener('dragend', () => {
-                    div.classList.remove('dragging');
-                    draggedItem = null;
-                    document.querySelectorAll('.image-item').forEach(el => el.classList.remove('drag-over'));
-                });
-
-                div.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    if (draggedItem && draggedItem !== div) {
-                        div.classList.add('drag-over');
-                    }
-                });
-
-                div.addEventListener('dragleave', () => {
-                    div.classList.remove('drag-over');
-                });
-
-                div.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    div.classList.remove('drag-over');
-                    
-                    if (draggedItem && draggedItem !== div) {
-                        const fromId = parseFloat(draggedItem.dataset.id);
-                        const toId = parseFloat(div.dataset.id);
-                        const fromIndex = images.findIndex(img => img.id === fromId);
-                        const toIndex = images.findIndex(img => img.id === toId);
-                        
-                        if (fromIndex !== -1 && toIndex !== -1) {
-                            const [removed] = images.splice(fromIndex, 1);
-                            images.splice(toIndex, 0, removed);
-                            renderImages();
-                        }
-                    }
-                });
+                // 添加拖拽事件
+                setupDragEvents(div);
 
                 imagesList.appendChild(div);
             });
         }
 
-        // 生成长图
+        // 设置拖拽事件
+        function setupDragEvents(element) {
+            if (isTouchDevice) {
+                // 触摸设备事件
+                element.addEventListener('touchstart', handleTouchStart, { passive: false });
+                element.addEventListener('touchmove', handleTouchMove, { passive: false });
+                element.addEventListener('touchend', handleTouchEnd);
+                element.addEventListener('touchcancel', handleTouchEnd);
+            } else {
+                // 桌面设备拖拽
+                element.draggable = true;
+                element.addEventListener('dragstart', handleDragStart);
+                element.addEventListener('dragend', handleDragEnd);
+                element.addEventListener('dragover', handleDragOver);
+                element.addEventListener('dragleave', handleDragLeave);
+                element.addEventListener('drop', handleDrop);
+            }
+        }
+
+        // ==================== 触摸事件处理 ====================
+        
+        function handleTouchStart(e) {
+            // 如果点击的是删除按钮，不处理拖拽
+            if (e.target.classList.contains('remove-btn')) {
+                return;
+            }
+
+            const touch = e.touches[0];
+            const element = e.currentTarget;
+            const rect = element.getBoundingClientRect();
+
+            dragState.startX = touch.clientX;
+            dragState.startY = touch.clientY;
+            dragState.offsetX = touch.clientX - rect.left;
+            dragState.offsetY = touch.clientY - rect.top;
+            dragState.hasMoved = false;
+
+            // 长按定时器 - 200ms后开始拖拽
+            dragState.longPressTimer = setTimeout(() => {
+                startTouchDrag(element, touch);
+            }, 200);
+        }
+
+        function startTouchDrag(element, touch) {
+            dragState.isDragging = true;
+            dragState.draggedItem = element;
+            dragState.draggedIndex = parseInt(element.dataset.index);
+
+            // 添加震动反馈（如果支持）
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+
+            // 创建幽灵元素
+            const ghost = document.createElement('div');
+            ghost.className = 'drag-ghost';
+            ghost.innerHTML = `<img src="${images[dragState.draggedIndex].url}" alt="">`;
+            document.body.appendChild(ghost);
+            dragState.ghost = ghost;
+
+            // 创建占位符
+            const placeholder = document.createElement('div');
+            placeholder.className = 'drag-placeholder';
+            placeholder.style.width = element.offsetWidth + 'px';
+            placeholder.style.height = element.offsetHeight + 'px';
+            dragState.placeholder = placeholder;
+
+            // 隐藏原元素并插入占位符
+            element.classList.add('dragging');
+            element.parentNode.insertBefore(placeholder, element);
+
+            // 更新幽灵位置
+            updateGhostPosition(touch.clientX, touch.clientY);
+        }
+
+        function handleTouchMove(e) {
+            // 如果还没开始拖拽，检查是否移动了足够距离取消长按
+            if (!dragState.isDragging) {
+                const touch = e.touches[0];
+                const dx = Math.abs(touch.clientX - dragState.startX);
+                const dy = Math.abs(touch.clientY - dragState.startY);
+                
+                if (dx > 10 || dy > 10) {
+                    clearTimeout(dragState.longPressTimer);
+                    dragState.hasMoved = true;
+                }
+                return;
+            }
+
+            e.preventDefault();
+            const touch = e.touches[0];
+            
+            updateGhostPosition(touch.clientX, touch.clientY);
+
+            // 找到当前位置下的目标元素
+            const target = findDropTarget(touch.clientX, touch.clientY);
+            
+            // 更新高亮状态
+            document.querySelectorAll('.image-item').forEach(item => {
+                item.classList.remove('drag-over');
+            });
+
+            if (target && target !== dragState.draggedItem) {
+                target.classList.add('drag-over');
+                
+                // 移动占位符
+                const targetIndex = parseInt(target.dataset.index);
+                const currentIndex = Array.from(imagesList.children).indexOf(dragState.placeholder);
+                
+                if (targetIndex !== currentIndex) {
+                    if (targetIndex > currentIndex) {
+                        target.parentNode.insertBefore(dragState.placeholder, target.nextSibling);
+                    } else {
+                        target.parentNode.insertBefore(dragState.placeholder, target);
+                    }
+                }
+            }
+        }
+
+        function handleTouchEnd(e) {
+            clearTimeout(dragState.longPressTimer);
+
+            if (!dragState.isDragging) {
+                return;
+            }
+
+            // 获取最终位置
+            const placeholderIndex = Array.from(imagesList.children).indexOf(dragState.placeholder);
+            const fromIndex = dragState.draggedIndex;
+
+            // 计算实际目标索引（需要考虑拖拽元素本身）
+            let toIndex = placeholderIndex;
+            if (placeholderIndex > fromIndex) {
+                toIndex -= 1; // 因为拖拽元素还在列表中
+            }
+
+            // 执行排序
+            if (fromIndex !== toIndex && toIndex >= 0) {
+                const [removed] = images.splice(fromIndex, 1);
+                images.splice(toIndex, 0, removed);
+            }
+
+            // 清理
+            cleanupDrag();
+            renderImages();
+        }
+
+        function updateGhostPosition(x, y) {
+            if (dragState.ghost) {
+                dragState.ghost.style.left = (x - dragState.offsetX) + 'px';
+                dragState.ghost.style.top = (y - dragState.offsetY) + 'px';
+            }
+        }
+
+        function findDropTarget(x, y) {
+            const elements = document.elementsFromPoint(x, y);
+            for (const el of elements) {
+                if (el.classList.contains('image-item') && el !== dragState.draggedItem) {
+                    return el;
+                }
+            }
+            return null;
+        }
+
+        function cleanupDrag() {
+            if (dragState.ghost) {
+                dragState.ghost.remove();
+            }
+            if (dragState.placeholder) {
+                dragState.placeholder.remove();
+            }
+            if (dragState.draggedItem) {
+                dragState.draggedItem.classList.remove('dragging');
+            }
+            document.querySelectorAll('.image-item').forEach(item => {
+                item.classList.remove('drag-over');
+            });
+
+            dragState = {
+                isDragging: false,
+                draggedItem: null,
+                draggedIndex: -1,
+                ghost: null,
+                placeholder: null,
+                startX: 0,
+                startY: 0,
+                offsetX: 0,
+                offsetY: 0,
+                longPressTimer: null,
+                hasMoved: false
+            };
+        }
+
+        // ==================== 桌面拖拽事件处理 ====================
+
+        function handleDragStart(e) {
+            dragState.draggedItem = e.currentTarget;
+            dragState.draggedIndex = parseInt(e.currentTarget.dataset.index);
+            e.currentTarget.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', dragState.draggedIndex);
+        }
+
+        function handleDragEnd(e) {
+            e.currentTarget.classList.remove('dragging');
+            document.querySelectorAll('.image-item').forEach(item => {
+                item.classList.remove('drag-over');
+            });
+            dragState.draggedItem = null;
+            dragState.draggedIndex = -1;
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            if (dragState.draggedItem && e.currentTarget !== dragState.draggedItem) {
+                e.currentTarget.classList.add('drag-over');
+            }
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+
+            if (dragState.draggedItem && e.currentTarget !== dragState.draggedItem) {
+                const fromIndex = dragState.draggedIndex;
+                const toIndex = parseInt(e.currentTarget.dataset.index);
+
+                if (fromIndex !== toIndex) {
+                    const [removed] = images.splice(fromIndex, 1);
+                    images.splice(toIndex, 0, removed);
+                    renderImages();
+                }
+            }
+        }
+
+        // ==================== 生成长图 ====================
+
         async function generateImage() {
             if (images.length === 0) return;
 
